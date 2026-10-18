@@ -51,14 +51,30 @@ def einordnen(mail: str, versuche: int = 3) -> Anfrage:
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": mail},
     ]
-    # TODO 1: Ruft das Modell auf. Wählt eine passende temperature
-    #         und übergebt response_format=schema_von(Anfrage).
-    # TODO 2: Prüft die Antwort mit Anfrage.model_validate_json(...).
-    # TODO 3: Schlägt die Prüfung fehl (ValidationError), versucht es
-    #         erneut, höchstens `versuche`-mal. Gebt bei jedem
-    #         Fehlversuch eine kurze Meldung aus. Klappt es gar
-    #         nicht, werft einen RuntimeError.
-    raise NotImplementedError("TODO: einordnen() umsetzen")
+    # TODO 1: Temperature 0.0 gewählt, da wir eine deterministische,
+    #         strukturierte Extraktion von Fakten brauchen, keine Kreativität.
+    for versuch in range(versuche):
+        try:
+            antwort = client.chat.completions.create(
+                model=MODEL,
+                messages=nachricht,
+                temperature=0.0,
+                response_format=schema_von(Anfrage),
+            )
+            antwort_text = antwort.choices[0].message.content or ""
+
+            # TODO 2: Prüfung der Antwort mit Pydantic
+            return Anfrage.model_validate_json(antwort_text)
+
+        except ValidationError as e:
+            # TODO 3: Bei Fehler erneut versuchen
+            print(f"Validierungsfehler bei Versuch {versuch + 1}/{versuche}: {e}")
+            if versuch == versuche - 1:
+                raise RuntimeError(
+                    f"Konnte nach {versuche} Versuchen keine gültige Antwort erhalten"
+                ) from e
+
+    raise RuntimeError("Unerwarteter Fehler in einordnen()")
 
 
 def auswerten() -> None:
@@ -68,9 +84,18 @@ def auswerten() -> None:
     richtig = 0
     for fall in faelle:
         ergebnis = einordnen(fall["mail"])
-        # TODO 4: Vergleicht ergebnis mit fall["erwartet"]. Zählt einen
-        #         Fall als richtig, wenn das Anliegen stimmt. Gebt für
-        #         jeden Fall Mail, Ergebnis und ✓ oder ✗ aus.
+        erwartet = fall["erwartet"]
+
+        # TODO 4: Vergleich des Anliegens
+        ist_richtig = ergebnis.anliegen == erwartet["anliegen"]
+        if ist_richtig:
+            richtig += 1
+
+        symbol = "✓" if ist_richtig else "x"
+        print(f"\n{symbol} Mail: {fall['mail'][:60]}...")
+        print(f"  Erwartet: {erwartet}")
+        print(f"  Ergebnis: {ergebnis.model_dump()}")
+
     print(f"\n{richtig} von {len(faelle)} Anliegen richtig ({MODEL})")
 
 
