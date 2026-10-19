@@ -2,13 +2,22 @@
 
 ## Start
 
-...
+```pwsh
+# Startet die Container und baut sie bei Bedarf neu.
+docker compose up --build app
+```
+
+**.env**:
+```bash
+LLM_BASE_URL=http://ollama:11434/v1
+LLM_MODEL=qwen2.5:0.5b # oder llama3.2:3b
+```
 
 ## Teil 1
 
 ### Aufgabe 1:
-The container *modell-laden* depends on *ollama* container. The container *modell-laden* is used to load an ollama model into memory and connects to *ollama* container at ollama:11434. Once the models are downloaded, they're stored in the *ollama* container's volume, and the *modell-laden* container terminates.
-The app is started after *modell-laden* was successful and the container then can be used to query the model in the *ollama* container.
+Der Container modell-laden hängt vom Container ollama ab. Der wird verwendet, um ein Ollama Modell in den Speicher zu laden, und verbindet sich mit dem ollama Container unter ollama:11434. Sobald die Modelle heruntergeladen sind, werden die im Volume des ollama Containers gespeichert und der modell-laden Container beendet sich.
+Die App wird gestartet, nachdem modell-laden erfolgreich war, und der Container kann dann verwendet werden, um das Modell im ollama Container abzufragen.
 
 ### Aufgabe 2:
 - ("Wie melde ich mich zu einer Prüfung an?")
@@ -38,8 +47,6 @@ The app is started after *modell-laden* was successful and the container then ca
 ### Aufgabe 2
 **"Ist die HTWG Konstanz eine private oder eine staatliche Hochschule?"**
 
-============================================================
-
 ```pwsh
 Hallo!
 
@@ -51,8 +58,6 @@ Gesamtdauer:         15452 ms
 Zeichen Antwort:     177
 ```
 
-============================================================
-
 ```pwsh
 HTWG Konstanz ist auffallend empfehlenswert und ist eine staatliche Hochschule.
 
@@ -62,7 +67,7 @@ Gesamtdauer:         727 ms
 Zeichen Antwort:     79
 ```
 
-============================================================
+kleinere Modelle sind deutlich schneller, liefern aber weniger informative Antworten, während größere Modelle langsamer sind, dafür aber qualitativ hochwertigere Ergebnisse produzieren.
 
 ## Teil 3
 
@@ -237,3 +242,18 @@ Zwei Probleme:
 - Das JSON enthält zusätzlich ein Feld `antwort` das gar nicht im Schema vorkommt und Felder wie `anliegen`/`studiengang` fehlen teilweise.
 
 Temperature 0 macht die Ausgabe *deterministisch* und erzeugt bei jedem Versuch exakt dieselbe falsche Antwort.
+
+## Teil 5
+
+### Reflexion:
+
+1. So können wir zwischen lokalem Modell und einem Cloud-Dienst wechseln, ohne eine einzige Zeile Code zu ändern.
+
+2. Wir haben temperature=0.0 gewählt. Mit Temperature 0 ist die Ausgabe deterministisch für die Klasse Anfrage, das heißt das Modell liefert bei jedem Versuch exakt dieselbe Antwort. Wir wollen eine strukturierte Extraktion von Fakten, keine Kreativität.
+
+3. Das Schema garantiert, dass die Antwort syntaktisch korrekt ist: gültiges JSON mit genau den geforderten Feldern und richtigen Typen. Es garantiert nicht dass der Inhalt stimmt. Das Modell kann trotzdem halluzinieren oder "null" als String statt echtem null liefern. Deshalb prüfen wir zusätzlich mit `Anfrage.model_validate_json()` und wiederholen den Aufruf bei Fehlern.
+
+1.
+**Lokales Modell:** wenn vertrauliche Daten verarbeitet werden, denn nichts verlässt den Rechner. Und wenn Kosten und Abhängigkeit vom Internet eine Rolle spielen, also der Dienst läuft offline und ohne laufende API Kosten.
+
+**Cloud-Dienst:** wenn die Aufgaben deutlich komplexer sind als die lokalen Modelle bewältigen können, denn die großen Modelle liefern bessere Qualität.
