@@ -33,7 +33,6 @@ class Anfrage(BaseModel):
     studiengang: str | None
     frist: str | None
 
-
 def schema_von(modell: type[BaseModel]) -> dict:
     """Verpackt das JSON-Schema einer Pydantic-Klasse für response_format."""
     return {
@@ -51,8 +50,8 @@ def einordnen(mail: str, versuche: int = 3) -> Anfrage:
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": mail},
     ]
-    # TODO 1: Temperature 0.0 gewählt, da wir eine deterministische,
-    #         strukturierte Extraktion von Fakten brauchen, keine Kreativität.
+    # TODO 1: Ruft das Modell auf. Wählt eine passende temperature
+    #         und übergebt response_format=schema_von(Anfrage).
     for versuch in range(versuche):
         try:
             antwort = client.chat.completions.create(
@@ -63,11 +62,14 @@ def einordnen(mail: str, versuche: int = 3) -> Anfrage:
             )
             antwort_text = antwort.choices[0].message.content or ""
 
-            # TODO 2: Prüfung der Antwort mit Pydantic
+            # TODO 2: Prüft die Antwort mit Anfrage.model_validate_json(...).
             return Anfrage.model_validate_json(antwort_text)
 
         except ValidationError as e:
-            # TODO 3: Bei Fehler erneut versuchen
+            # TODO 3: Schlägt die Prüfung fehl (ValidationError), versucht es
+            #         erneut, höchstens `versuche`-mal. Gebt bei jedem
+            #         Fehlversuch eine kurze Meldung aus. Klappt es gar
+            #         nicht, werft einen RuntimeError.
             print(f"Validierungsfehler bei Versuch {versuch + 1}/{versuche}: {e}")
             if versuch == versuche - 1:
                 raise RuntimeError(
@@ -86,12 +88,14 @@ def auswerten() -> None:
         ergebnis = einordnen(fall["mail"])
         erwartet = fall["erwartet"]
 
-        # TODO 4: Vergleich des Anliegens
-        ist_richtig = ergebnis.anliegen == erwartet["anliegen"]
+        # TODO 4: Vergleicht ergebnis mit fall["erwartet"]. Zählt einen
+        #         Fall als richtig, wenn das Anliegen stimmt. Gebt für
+        #         jeden Fall Mail, Ergebnis und ✓ oder ✗ aus.
+        ist_richtig = ergebnis.anliegen == erwartet["anliegen"] and ergebnis.studiengang == erwartet["studiengang"] and ergebnis.frist == erwartet["frist"]
         if ist_richtig:
             richtig += 1
 
-        symbol = "✓" if ist_richtig else "x"
+        symbol = "✓" if ist_richtig else "✗"
         print(f"\n{symbol} Mail: {fall['mail'][:60]}...")
         print(f"  Erwartet: {erwartet}")
         print(f"  Ergebnis: {ergebnis.model_dump()}")
